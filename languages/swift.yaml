@@ -1,0 +1,104 @@
+# Capability patterns for Swift / Swift Package Manager (SPM)
+#
+# Covers import statements and call-site patterns matched in .swift source
+# files. Import patterns are matched against Swift package product names.
+# Call-site patterns are matched as substrings of each source line.
+#
+# Capabilities: fs:read, fs:write, network, exec, env, unsafe, crypto, reflect, plugin
+
+name: swift
+
+imports:
+  # ── Network ────────────────────────────────────────────────────────────────
+  Foundation:         [fs:read, fs:write, network, exec, env]
+  Network:            [network]
+  Alamofire:          [network]
+  Moya:               [network]
+  URLSession:         [network]
+  AsyncHTTPClient:    [network]
+  Vapor:              [network, fs:read, fs:write]
+  Hummingbird:        [network]
+  NIOCore:            [network]
+  NIOPosix:           [network]
+  NIOSSL:             [network, crypto]
+  NIOHTTP1:           [network]
+  WebSocketKit:       [network]
+  Starscream:         [network]
+  MongoKitten:        [network]
+  PostgresNIO:        [network]
+  MySQLNIO:           [network]
+  Redis:              [network]
+  RediStack:          [network]
+  SQLiteNIO:          [fs:read, fs:write, network]
+  Fluent:             [fs:read, fs:write, network]
+  # ── Crypto ─────────────────────────────────────────────────────────────────
+  CryptoKit:          [crypto]
+  Crypto:             [crypto]
+  SwiftJWT:           [crypto]
+  JWTKit:             [crypto]
+  swift-crypto:       [crypto]
+  BCrypt:             [crypto]
+  # ── Filesystem ─────────────────────────────────────────────────────────────
+  FileKit:            [fs:read, fs:write]
+  Files:              [fs:read, fs:write]
+  PathKit:            [fs:read]
+  Zip:                [fs:read, fs:write]
+  SQLite:             [fs:read, fs:write]
+  GRDB:               [fs:read, fs:write]
+  # ── Process execution ──────────────────────────────────────────────────────
+  AppKit:             [exec, fs:read, fs:write, network]
+  UIKit:              [exec, network]
+  SwiftShell:         [exec]
+  ShellOut:           [exec]
+  ArgumentParser:     [exec]
+  # ── Logging / telemetry ────────────────────────────────────────────────────
+  Logging:            [fs:write]
+  SwiftyBeaver:       [fs:write, network]
+  # ── Reflection / unsafe ────────────────────────────────────────────────────
+  RuntimeLib:         [reflect, unsafe]
+  Mirror:             [reflect]
+  Unsafe:             [unsafe]
+  CSwiftV:            [unsafe]
+  # ── Dependency injection / plugin ──────────────────────────────────────────
+  Resolver:           [plugin]
+  Swinject:           [plugin]
+  Factory:            [plugin]
+  NeedleFoundation:   [plugin]
+  # ── Environment ────────────────────────────────────────────────────────────
+  Dotenv:             [env]
+
+call_sites:
+  # ── Network ────────────────────────────────────────────────────────────────
+  "URLSession.shared":            [network]
+  "URLSession(configuration:":    [network]
+  "URLRequest(":                  [network]
+  # ── Filesystem ─────────────────────────────────────────────────────────────
+  "FileManager.default":          [fs:read, fs:write]
+  "FileManager(":                 [fs:read, fs:write]
+  "FileHandle(forReadingAtPath:": [fs:read]
+  "FileHandle(forWritingAtPath:": [fs:write]
+  # ── Process execution ──────────────────────────────────────────────────────
+  "Process(":                     [exec]
+  "NSTask(":                      [exec]
+  "shell(":                       [exec]
+  # ── Environment ────────────────────────────────────────────────────────────
+  "ProcessInfo.processInfo":               [env]
+  "ProcessInfo.processInfo.environment":   [env]
+  # ── Crypto ─────────────────────────────────────────────────────────────────
+  "SHA256.hash(":         [crypto]
+  "SHA512.hash(":         [crypto]
+  "AES.GCM.seal(":        [crypto]
+  "AES.GCM.open(":        [crypto]
+  "P256.KeyAgreement":    [crypto]
+  "SecKeyCreateRandomKey(": [crypto]
+  # ── Unsafe ─────────────────────────────────────────────────────────────────
+  "UnsafeMutablePointer(": [unsafe]
+  "UnsafeRawPointer(":     [unsafe]
+  "unsafeBitCast(":        [unsafe]
+  "withUnsafeBytes(":      [unsafe]
+  # ── Plugin / reflection ────────────────────────────────────────────────────
+  "dlopen(":              [plugin]
+  "Bundle.main":          [plugin]
+  "Bundle(identifier:":   [plugin]
+  "NSClassFromString(":   [plugin, reflect]
+  "Mirror(reflecting:":   [reflect]

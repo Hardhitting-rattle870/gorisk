@@ -50,6 +50,26 @@ func TestDetect(t *testing.T) {
 			files:    []string{"Gemfile.lock"},
 			expected: "ruby",
 		},
+		{
+			name:     "swift project (Package.resolved)",
+			files:    []string{"Package.resolved"},
+			expected: "swift",
+		},
+		{
+			name:     "swift project (Package.swift)",
+			files:    []string{"Package.swift"},
+			expected: "swift",
+		},
+		{
+			name:     "dart project (pubspec.lock)",
+			files:    []string{"pubspec.lock"},
+			expected: "dart",
+		},
+		{
+			name:     "dart project (pubspec.yaml only)",
+			files:    []string{"pubspec.yaml"},
+			expected: "dart",
+		},
 	}
 
 	for _, tt := range tests {
@@ -128,6 +148,16 @@ func TestForLang(t *testing.T) {
 			name:       "explicit ruby",
 			lang:       "ruby",
 			expectName: "ruby",
+		},
+		{
+			name:       "explicit swift",
+			lang:       "swift",
+			expectName: "swift",
+		},
+		{
+			name:       "explicit dart",
+			lang:       "dart",
+			expectName: "dart",
 		},
 		{
 			name:        "invalid language",

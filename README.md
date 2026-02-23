@@ -66,6 +66,10 @@ When both `go.mod` and `package.json` are present (monorepo), both analyzers run
 | **Rust** | `rust` | ✅ stable | `Cargo.toml` | `Cargo.lock`, `Cargo.toml` |
 | **Java** | `java` | ✅ stable | `pom.xml` / `build.gradle` | `pom.xml`, `gradle.lockfile`, `build.gradle` |
 | **Ruby** | `ruby` | ✅ stable | `Gemfile` / `Gemfile.lock` | `Gemfile.lock`, `Gemfile` |
+| **C#/.NET** | `dotnet` | ✅ stable | `packages.lock.json` / `*.csproj` | NuGet `packages.lock.json`, `.csproj` PackageReference |
+| **Dart/Flutter** | `dart` | ✅ stable | `pubspec.lock` / `pubspec.yaml` | `pubspec.lock`, `pubspec.yaml` |
+| **Swift** | `swift` | ✅ stable | `Package.resolved` / `Package.swift` | `Package.resolved` v1/v2/v3, `Package.swift` |
+| **Elixir** | `elixir` | ✅ stable | `mix.lock` / `mix.exs` | `mix.lock`, `mix.exs` |
 
 Want to add a language? The `Analyzer` interface is a single `Load(dir string) (*graph.DependencyGraph, error)` method — see [Contributing](#contributing).
 

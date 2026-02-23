@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	dartadapter "github.com/1homsi/gorisk/internal/adapters/dart"
+	elixiradapter "github.com/1homsi/gorisk/internal/adapters/elixir"
 	goadapter "github.com/1homsi/gorisk/internal/adapters/go"
 	javaadapter "github.com/1homsi/gorisk/internal/adapters/java"
 	nodeadapter "github.com/1homsi/gorisk/internal/adapters/node"
@@ -15,6 +17,7 @@ import (
 	pythonadapter "github.com/1homsi/gorisk/internal/adapters/python"
 	rubyadapter "github.com/1homsi/gorisk/internal/adapters/ruby"
 	rustadapter "github.com/1homsi/gorisk/internal/adapters/rust"
+	swiftadapter "github.com/1homsi/gorisk/internal/adapters/swift"
 	"github.com/1homsi/gorisk/internal/graph"
 	"github.com/1homsi/gorisk/internal/prdiff"
 	"github.com/1homsi/gorisk/internal/reachability"
@@ -52,6 +55,9 @@ var registry = map[string]LangFeatures{
 	"java":   {},
 	"rust":   {},
 	"ruby":   {},
+	"elixir": {},
+	"swift":  {},
+	"dart":   {},
 }
 
 // FeaturesFor returns the feature implementations for the given language.
@@ -65,7 +71,7 @@ func FeaturesFor(lang, dir string) (LangFeatures, error) {
 	}
 	f, ok := registry[lang]
 	if !ok {
-		return LangFeatures{}, fmt.Errorf("unknown language %q; choose auto|go|node|php|python|java|rust|ruby", lang)
+		return LangFeatures{}, fmt.Errorf("unknown language %q; choose auto|go|node|php|python|java|rust|ruby|elixir|dart|swift", lang)
 	}
 	return f, nil
 }
@@ -99,10 +105,16 @@ func ForLang(lang, dir string) (Analyzer, error) {
 		return &rustadapter.Adapter{}, nil
 	case "ruby":
 		return &rubyadapter.Adapter{}, nil
+	case "dart":
+		return dartadapter.Adapter{}, nil
+	case "elixir":
+		return elixiradapter.Adapter{}, nil
+	case "swift":
+		return &swiftadapter.Adapter{}, nil
 	case "multi":
 		return &multiAnalyzer{}, nil
 	default:
-		return nil, fmt.Errorf("unknown language %q; choose auto|go|node|php|python|java|rust|ruby", lang)
+		return nil, fmt.Errorf("unknown language %q; choose auto|go|node|php|python|java|rust|ruby|elixir|dart|swift", lang)
 	}
 }
 
@@ -121,11 +133,20 @@ func detect(dir string) string {
 	hasCargoToml := fileExists(filepath.Join(dir, "Cargo.toml"))
 	hasGemfileLock := fileExists(filepath.Join(dir, "Gemfile.lock"))
 	hasGemfile := fileExists(filepath.Join(dir, "Gemfile"))
+	hasPubspecLock := fileExists(filepath.Join(dir, "pubspec.lock"))
+	hasPubspecYAML := fileExists(filepath.Join(dir, "pubspec.yaml"))
+	hasMixLock := fileExists(filepath.Join(dir, "mix.lock"))
+	hasMixExs := fileExists(filepath.Join(dir, "mix.exs"))
+	hasPackageResolved := fileExists(filepath.Join(dir, "Package.resolved"))
+	hasPackageSwift := fileExists(filepath.Join(dir, "Package.swift"))
 
 	isPython := hasPyprojectTOML || hasPoetryLock || hasPipfileLock || hasRequirementsTxt
 	isJava := hasPomXML || hasGradleLock || hasBuildGradle
 	isRust := hasCargoToml
 	isRuby := hasGemfileLock || hasGemfile
+	isDart := hasPubspecLock || hasPubspecYAML
+	isElixir := hasMixLock || hasMixExs
+	isSwift := hasPackageResolved || hasPackageSwift
 
 	switch {
 	case hasGoMod && hasPkgJSON:
@@ -144,6 +165,12 @@ func detect(dir string) string {
 		return "rust"
 	case isRuby:
 		return "ruby"
+	case isDart:
+		return "dart"
+	case isElixir:
+		return "elixir"
+	case isSwift:
+		return "swift"
 	default:
 		return "go"
 	}

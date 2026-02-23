@@ -1,0 +1,91 @@
+# Capability patterns for C#/.NET
+#
+# Covers using/import statements and call-site patterns matched in .cs source
+# files. Import patterns are matched against NuGet package names and .NET
+# namespace prefixes. Call-site patterns are matched as substrings of each
+# source line.
+#
+# Capabilities: fs:read, fs:write, network, exec, env, unsafe, crypto, reflect, plugin
+
+name: dotnet
+
+imports:
+  # ── Network ────────────────────────────────────────────────────────────────
+  System.Net.Http:                  [network]
+  System.Net.Sockets:               [network]
+  System.Net.WebSockets:            [network]
+  System.Net:                       [network]
+  Microsoft.AspNetCore:             [network]
+  RestSharp:                        [network]
+  Flurl.Http:                       [network]
+  HttpClient:                       [network]
+  Microsoft.Data.SqlClient:         [network, fs:read]
+  Npgsql:                           [network]
+  MySqlConnector:                   [network]
+  MongoDB.Driver:                   [network]
+  StackExchange.Redis:              [network]
+  Dapper:                           [network, fs:read]
+  EntityFrameworkCore:              [network, fs:read]
+  # ── Process execution ──────────────────────────────────────────────────────
+  System.Diagnostics.Process:       [exec]
+  System.Diagnostics:               [exec]
+  CliWrap:                          [exec]
+  MediatR:                          [exec]
+  # ── Filesystem ─────────────────────────────────────────────────────────────
+  System.IO.Compression:            [fs:read, fs:write]
+  System.IO:                        [fs:read, fs:write]
+  CsvHelper:                        [fs:read]
+  ExcelDataReader:                  [fs:read]
+  NPOI:                             [fs:read, fs:write]
+  # ── Reflection ────────────────────────────────────────────────────────────
+  System.Reflection.Emit:           [reflect, unsafe]
+  System.Reflection:                [reflect]
+  System.Runtime.CompilerServices:  [reflect]
+  Mono.Cecil:                       [reflect]
+  # ── Crypto ────────────────────────────────────────────────────────────────
+  System.Security.Cryptography:     [crypto]
+  BouncyCastle.Cryptography:        [crypto]
+  Konscious.Security.Cryptography:  [crypto]
+  BCrypt.Net-Next:                  [crypto]
+  # ── Unsafe / interop ──────────────────────────────────────────────────────
+  System.Runtime.InteropServices:   [unsafe]
+  Microsoft.Win32:                  [unsafe]
+  # ── Plugin / dynamic loading ──────────────────────────────────────────────
+  System.Runtime.Loader:            [plugin]
+  McMaster.NETCore.Plugins:         [plugin]
+  Microsoft.CodeAnalysis.CSharp:    [plugin, unsafe]
+  Roslyn:                           [plugin, unsafe]
+  # ── Environment ────────────────────────────────────────────────────────────
+  System.Environment:               [env]
+  DotNetEnv:                        [env]
+  Microsoft.Extensions.Configuration: [env]
+
+call_sites:
+  "Process.Start(":                       [exec]
+  "Process.Run(":                         [exec]
+  "Environment.GetEnvironmentVariable(":  [env]
+  "Environment.SetEnvironmentVariable(":  [env]
+  "Assembly.Load(":                       [plugin]
+  "Assembly.LoadFrom(":                   [plugin]
+  "Assembly.LoadFile(":                   [plugin]
+  "ActivatorUtilities.CreateInstance(":   [plugin]
+  "File.ReadAllText(":                    [fs:read]
+  "File.ReadAllBytes(":                   [fs:read]
+  "File.ReadAllLines(":                   [fs:read]
+  "File.WriteAllText(":                   [fs:write]
+  "File.WriteAllBytes(":                  [fs:write]
+  "File.Delete(":                         [fs:write]
+  "Directory.CreateDirectory(":           [fs:write]
+  "Directory.Delete(":                    [fs:write]
+  "HttpClient.GetAsync(":                 [network]
+  "HttpClient.PostAsync(":                [network]
+  "WebClient.DownloadString(":            [network]
+  "Socket.Connect(":                      [network]
+  "Marshal.AllocHGlobal(":               [unsafe]
+  "unsafe {":                             [unsafe]
+  "GC.Collect(":                          [unsafe]
+  "Encrypt(":                             [crypto]
+  "Decrypt(":                             [crypto]
+  "SHA256.Create(":                       [crypto]
+  "RSA.Create(":                          [crypto]
+  "AES.Create(":                          [crypto]

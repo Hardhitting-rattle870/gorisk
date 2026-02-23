@@ -1,0 +1,122 @@
+# Capability patterns for Elixir/Erlang
+#
+# Covers import/use/alias/require statements and call-site patterns matched in
+# .ex and .exs source files. Import patterns are matched against Hex package
+# names. Call-site patterns are matched as substrings of each source line.
+#
+# Capabilities: fs:read, fs:write, network, exec, env, unsafe, crypto, reflect, plugin
+
+name: elixir
+
+imports:
+  # ── Network ────────────────────────────────────────────────────────────────
+  httpoison:        [network]
+  httpc:            [network]
+  hackney:          [network]
+  tesla:            [network]
+  finch:            [network]
+  mint:             [network]
+  gun:              [network]
+  req:              [network]
+  phoenix:          [network, fs:read, fs:write, exec]
+  plug:             [network]
+  bandit:           [network]
+  cowboy:           [network]
+  # ── Serialization / Filesystem ─────────────────────────────────────────────
+  jason:            [fs:read]
+  poison:           [fs:read]
+  # ── Database ──────────────────────────────────────────────────────────────
+  ecto:             [network, fs:read, fs:write]
+  ecto_sql:         [network, fs:read, fs:write]
+  postgrex:         [network]
+  myxql:            [network]
+  tds:              [network]
+  redix:            [network]
+  mongodb_driver:   [network]
+  neo4j_sips:       [network]
+  # ── Cloud / Storage ────────────────────────────────────────────────────────
+  ex_aws:           [network, fs:read, fs:write, crypto]
+  ex_aws_s3:        [network, fs:read, fs:write]
+  file_system:      [fs:read, fs:write]
+  briefly:          [fs:read, fs:write]
+  arc:              [fs:read, fs:write, network]
+  waffle:           [fs:read, fs:write, network]
+  # ── Crypto ────────────────────────────────────────────────────────────────
+  comeonin:         [crypto]
+  bcrypt_elixir:    [crypto]
+  argon2_elixir:    [crypto]
+  pbkdf2_elixir:    [crypto]
+  cloak:            [crypto]
+  jose:             [crypto]
+  guardian:         [crypto]
+  joken:            [crypto]
+  # ── CSV / Spreadsheet ─────────────────────────────────────────────────────
+  nimble_csv:       [fs:read]
+  xlsxir:           [fs:read]
+  elixlsx:          [fs:write]
+  # ── Process execution ──────────────────────────────────────────────────────
+  porcelain:        [exec]
+  erlexec:          [exec]
+  rambo:            [exec]
+  exile:            [exec]
+  os_mon:           [exec, env]
+  nerves:           [exec, unsafe, fs:read, fs:write]
+  distillery:       [exec, fs:read, fs:write]
+  mix_docker:       [exec]
+  quantum:          [exec]
+  oban:             [exec, network]
+  broadway:         [exec, network]
+  gen_stage:        [exec]
+  flow:             [exec]
+  # ── Messaging / Email ──────────────────────────────────────────────────────
+  drab:             [network, exec]
+  absinthe:         [network]
+  swoosh:           [network, exec]
+  bamboo:           [network]
+  exq:              [network, exec]
+  # ── Env / Config ──────────────────────────────────────────────────────────
+  conform:          [fs:read, env]
+  dotenvy:          [env]
+  sysconfig:        [env]
+  # ── Reflection / Unsafe ───────────────────────────────────────────────────
+  runtime_tools:    [reflect, unsafe]
+  observer:         [reflect]
+  # ── Docs / Misc ───────────────────────────────────────────────────────────
+  ex_doc:           [fs:read, fs:write]
+
+call_sites:
+  ":os.cmd(":                    [exec]
+  ":os.getenv(":                 [env]
+  ":os.putenv(":                 [env]
+  "System.cmd(":                 [exec]
+  "System.shell(":               [exec]
+  "System.get_env(":             [env]
+  "System.put_env(":             [env]
+  "File.read(":                  [fs:read]
+  "File.write(":                 [fs:write]
+  "File.rm(":                    [fs:write]
+  "File.mkdir(":                 [fs:write]
+  "File.ls(":                    [fs:read]
+  "File.stream!(":               [fs:read]
+  "File.open(":                  [fs:read, fs:write]
+  "File.copy(":                  [fs:read, fs:write]
+  "HTTPoison.get(":              [network]
+  "HTTPoison.post(":             [network]
+  "Tesla.get(":                  [network]
+  "Tesla.post(":                 [network]
+  "Req.get(":                    [network]
+  "Req.post(":                   [network]
+  ":crypto.hash(":               [crypto]
+  ":crypto.mac(":                [crypto]
+  "Bcrypt.hash_pwd_salt(":       [crypto]
+  "Comeonin.Bcrypt.hashpwsalt(": [crypto]
+  ":erlang.term_to_binary(":     [unsafe]
+  ":erlang.binary_to_term(":     [unsafe]
+  "Code.eval_string(":           [unsafe]
+  "Code.eval_file(":             [unsafe]
+  "Code.compile_string(":        [unsafe]
+  "apply(":                      [plugin]
+  "Code.load_file(":             [plugin]
+  "Code.require_file(":          [plugin]
+  ":erlang.load_nif(":           [unsafe, plugin]
+  "Port.open(":                  [exec, unsafe]

@@ -1,0 +1,92 @@
+# Capability patterns for Dart/Flutter
+#
+# Covers import statements and call-site patterns matched in .dart source files.
+# Import patterns are matched against package names. Call-site patterns are
+# matched as substrings of each source line.
+#
+# Capabilities: fs:read, fs:write, network, exec, env, unsafe, crypto, reflect, plugin
+
+name: dart
+
+imports:
+  # ── Core I/O ───────────────────────────────────────────────────────────────
+  dart:io:                      [fs:read, fs:write, network, exec]
+  dart:isolate:                 [exec]
+  dart:mirrors:                 [reflect]
+  dart:ffi:                     [unsafe]
+  dart:html:                    [network]
+  dart:js:                      [unsafe, plugin]
+  # ── Network ────────────────────────────────────────────────────────────────
+  http:                         [network]
+  dio:                          [network]
+  retrofit:                     [network]
+  chopper:                      [network]
+  http_parser:                  [network]
+  web_socket_channel:           [network]
+  shelf:                        [network]
+  angel_framework:              [network]
+  dart_frog:                    [network]
+  conduit:                      [network]
+  # ── Filesystem ─────────────────────────────────────────────────────────────
+  path:                         [fs:read]
+  path_provider:                [fs:read, fs:write]
+  file:                         [fs:read, fs:write]
+  sqflite:                      [fs:read, fs:write, network]
+  isar:                         [fs:read, fs:write]
+  hive:                         [fs:read, fs:write]
+  shared_preferences:           [fs:read, fs:write]
+  flutter_secure_storage:       [fs:read, fs:write, crypto]
+  # ── Crypto ────────────────────────────────────────────────────────────────
+  pointycastle:                 [crypto]
+  crypto:                       [crypto]
+  encrypt:                      [crypto]
+  steel_crypt:                  [crypto]
+  dart_jsonwebtoken:            [crypto]
+  jose:                         [crypto]
+  # ── Unsafe / FFI ──────────────────────────────────────────────────────────
+  ffi:                          [unsafe]
+  win32:                        [unsafe, fs:read, fs:write, exec, network]
+  objective_c:                  [unsafe]
+  # ── Process execution ──────────────────────────────────────────────────────
+  flutter_local_notifications:  [exec]
+  workmanager:                  [exec]
+  background_fetch:             [exec]
+  process_run:                  [exec, fs:read]
+  # ── Plugin ────────────────────────────────────────────────────────────────
+  plugin_platform_interface:    [plugin]
+  flutter_plugin_android_lifecycle: [plugin]
+  # ── Env ───────────────────────────────────────────────────────────────────
+  envied:                       [env]
+  dotenv:                       [env]
+  flutter_dotenv:               [env]
+  # ── Reflection / analysis ─────────────────────────────────────────────────
+  dart_style:                   [fs:read, fs:write]
+  analyzer:                     [reflect, plugin]
+
+call_sites:
+  "File(":                   [fs:read, fs:write]
+  "Directory(":              [fs:read, fs:write]
+  "File.fromUri(":           [fs:read, fs:write]
+  "HttpClient(":             [network]
+  "HttpServer.bind(":        [network]
+  "Socket.connect(":         [network]
+  "WebSocket.connect(":      [network]
+  "InternetAddress(":        [network]
+  "Process.run(":            [exec]
+  "Process.start(":          [exec]
+  "Process.runSync(":        [exec]
+  "Isolate.spawn(":          [exec]
+  "ReceivePort(":            [exec]
+  "Platform.environment":    [env]
+  "Platform.executable":     [env]
+  "calloc.allocate(":        [unsafe]
+  "malloc.allocate(":        [unsafe]
+  "Pointer.fromAddress(":    [unsafe]
+  "MethodChannel(":          [plugin]
+  "EventChannel(":           [plugin]
+  "BasicMessageChannel(":    [plugin]
+  "sha256.convert(":         [crypto]
+  "md5.convert(":            [crypto]
+  "HmacSha256(":             [crypto]
+  "AES(":                    [crypto]
+  "RSAPublicKey(":           [crypto]
