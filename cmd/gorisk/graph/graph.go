@@ -105,7 +105,7 @@ func Run(args []string) int {
 	minLevel := capability.RiskValue(*minRisk)
 	var filtered []moduleRiskWithComposite
 	for _, r := range risksWithComposite {
-		if r.Final.Final >= float64(minLevel) {
+		if capability.RiskValue(r.Final.Level) >= minLevel {
 			filtered = append(filtered, r)
 		}
 	}
