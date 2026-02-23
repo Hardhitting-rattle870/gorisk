@@ -21,6 +21,7 @@ type evidenceEntry struct {
 	Module     string
 	Capability string
 	Evidence   []capability.CapabilityEvidence
+	Score      int
 }
 
 func Run(args []string) int {
@@ -62,16 +63,21 @@ func Run(args []string) int {
 				Module:     pkg.Module.Path,
 				Capability: cap,
 				Evidence:   evs,
+				Score:      pkg.Capabilities.Score,
 			})
 		}
 	}
 
+	// Sort by module first, then by score descending, then capability, then package.
 	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].Capability != entries[j].Capability {
-			return entries[i].Capability < entries[j].Capability
-		}
 		if entries[i].Module != entries[j].Module {
 			return entries[i].Module < entries[j].Module
+		}
+		if entries[i].Score != entries[j].Score {
+			return entries[i].Score > entries[j].Score
+		}
+		if entries[i].Capability != entries[j].Capability {
+			return entries[i].Capability < entries[j].Capability
 		}
 		return entries[i].Package < entries[j].Package
 	})
@@ -111,6 +117,7 @@ func printJSONWithTaint(entries []evidenceEntry, taintFindings []taint.TaintFind
 		Package    string   `json:"package"`
 		Module     string   `json:"module"`
 		Capability string   `json:"capability"`
+		Score      int      `json:"score,omitempty"`
 		Evidence   []jsonEv `json:"evidence"`
 	}
 	type jsonOutput struct {
@@ -134,6 +141,7 @@ func printJSONWithTaint(entries []evidenceEntry, taintFindings []taint.TaintFind
 			Package:    e.Package,
 			Module:     e.Module,
 			Capability: e.Capability,
+			Score:      e.Score,
 			Evidence:   jevs,
 		})
 	}
@@ -156,6 +164,8 @@ func printText(entries []evidenceEntry, cwd string) int {
 		bold   = "\033[1m"
 		cyan   = "\033[36m"
 		yellow = "\033[33m"
+		red    = "\033[31m"
+		green  = "\033[32m"
 		gray   = "\033[90m"
 		reset  = "\033[0m"
 	)
@@ -167,38 +177,94 @@ func printText(entries []evidenceEntry, cwd string) int {
 
 	fmt.Fprintf(os.Stdout, "%s%s=== Capability Evidence ===%s\n\n", bold, cyan, reset)
 
-	// Group by capability
-	type modGroup struct {
-		modules map[string][]evidenceEntry
-		order   []string
+	// Group by module, preserving insertion order (entries already sorted by module).
+	type capEntry struct {
+		capability string
+		score      int
+		pkgEntries []evidenceEntry
 	}
-	capGroups := make(map[string]*modGroup)
-	capOrder := []string{}
+	type modGroup struct {
+		caps  map[string]*capEntry
+		order []string // capability insertion order within module
+	}
+	modGroups := make(map[string]*modGroup)
+	modOrder := []string{}
 
 	for _, e := range entries {
-		if _, ok := capGroups[e.Capability]; !ok {
-			capGroups[e.Capability] = &modGroup{modules: make(map[string][]evidenceEntry)}
-			capOrder = append(capOrder, e.Capability)
+		if _, ok := modGroups[e.Module]; !ok {
+			modGroups[e.Module] = &modGroup{caps: make(map[string]*capEntry)}
+			modOrder = append(modOrder, e.Module)
 		}
-		cg := capGroups[e.Capability]
-		if _, exists := cg.modules[e.Module]; !exists {
-			cg.order = append(cg.order, e.Module)
+		mg := modGroups[e.Module]
+		if _, exists := mg.caps[e.Capability]; !exists {
+			mg.caps[e.Capability] = &capEntry{capability: e.Capability, score: e.Score}
+			mg.order = append(mg.order, e.Capability)
 		}
-		cg.modules[e.Module] = append(cg.modules[e.Module], e)
+		ce := mg.caps[e.Capability]
+		// Keep highest score seen for this capability group.
+		if e.Score > ce.score {
+			ce.score = e.Score
+		}
+		ce.pkgEntries = append(ce.pkgEntries, e)
 	}
 
-	for _, capName := range capOrder {
-		cg := capGroups[capName]
-		fmt.Fprintf(os.Stdout, "%s%s%s\n", bold, capName, reset)
-		for _, modPath := range cg.order {
-			fmt.Fprintf(os.Stdout, "  %s%s%s\n", yellow, modPath, reset)
-			pkgEntries := cg.modules[modPath]
-			for _, entry := range pkgEntries {
+	// Sort capabilities within each module by score descending, then name.
+	for _, mg := range modGroups {
+		sort.Slice(mg.order, func(i, j int) bool {
+			ci := mg.caps[mg.order[i]]
+			cj := mg.caps[mg.order[j]]
+			if ci.score != cj.score {
+				return ci.score > cj.score
+			}
+			return mg.order[i] < mg.order[j]
+		})
+	}
+
+	for _, modPath := range modOrder {
+		mg := modGroups[modPath]
+
+		// Compute aggregate score for the module (max across capabilities).
+		maxScore := 0
+		for _, ce := range mg.caps {
+			if ce.score > maxScore {
+				maxScore = ce.score
+			}
+		}
+
+		scoreColor := green
+		riskLabel := "LOW"
+		switch {
+		case maxScore >= 30:
+			scoreColor = red
+			riskLabel = "HIGH"
+		case maxScore >= 10:
+			scoreColor = yellow
+			riskLabel = "MEDIUM"
+		}
+
+		fmt.Fprintf(os.Stdout, "%s%s%s  %s[score:%d %s]%s\n",
+			bold, modPath, reset,
+			scoreColor, maxScore, riskLabel, reset)
+
+		for _, capName := range mg.order {
+			ce := mg.caps[capName]
+			fmt.Fprintf(os.Stdout, "  %s%s%s\n", cyan, capName, reset)
+
+			for _, entry := range ce.pkgEntries {
+				fmt.Fprintf(os.Stdout, "    %s%s%s\n", gray, entry.Package, reset)
+
 				if len(entry.Evidence) == 0 {
-					fmt.Fprintf(os.Stdout, "    %s(no evidence recorded)%s\n", gray, reset)
+					fmt.Fprintf(os.Stdout, "      %s(no evidence recorded)%s\n", gray, reset)
 					continue
 				}
-				for _, ev := range entry.Evidence {
+
+				// Print up to 3 evidence items.
+				limit := 3
+				if len(entry.Evidence) < limit {
+					limit = len(entry.Evidence)
+				}
+				for idx := 0; idx < limit; idx++ {
+					ev := entry.Evidence[idx]
 					file := ev.File
 					if cwd != "" {
 						if rel, err := filepath.Rel(cwd, ev.File); err == nil && !strings.HasPrefix(rel, "..") {
@@ -209,12 +275,19 @@ func printText(entries []evidenceEntry, cwd string) int {
 					if ev.Line > 0 {
 						loc = fmt.Sprintf("%s:%d", file, ev.Line)
 					}
+					via := ev.Via
+					if via == "" {
+						via = ev.Context
+					}
 					confStr := ""
 					if ev.Confidence > 0 {
-						confStr = fmt.Sprintf("  %d%%", int(ev.Confidence*100))
+						confStr = fmt.Sprintf(" conf:%.0f%%", ev.Confidence*100)
 					}
-					fmt.Fprintf(os.Stdout, "    %-55s  %s%-12s%s  [%s%s]\n",
-						loc, gray, ev.Context, reset, ev.Via, confStr)
+					fmt.Fprintf(os.Stdout, "      %-55s  via:%-14s%s\n",
+						loc, via+confStr, reset)
+				}
+				if len(entry.Evidence) > 3 {
+					fmt.Fprintf(os.Stdout, "      %s... and %d more%s\n", gray, len(entry.Evidence)-3, reset)
 				}
 			}
 		}

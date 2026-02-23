@@ -1,9 +1,12 @@
 package analyzer
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	goadapter "github.com/1homsi/gorisk/internal/adapters/go"
 	javaadapter "github.com/1homsi/gorisk/internal/adapters/java"
@@ -210,4 +213,211 @@ func mergeGraphs(a, b *graph.DependencyGraph) *graph.DependencyGraph {
 		merged.Edges[k] = v
 	}
 	return merged
+}
+
+// LoadWorkspace detects a monorepo/workspace root and scans all members as a
+// unified project. It supports three workspace formats:
+//
+//   - go.work             → Go workspace (contains multiple Go modules via "use" directives)
+//   - package.json with   → npm workspaces (supports glob patterns like "packages/*")
+//     "workspaces" field
+//   - pnpm-workspace.yaml → pnpm workspace (packages: list)
+//
+// For each workspace member directory, the appropriate language adapter's
+// Load method is called and the resulting graphs are merged.
+func LoadWorkspace(root string) (*graph.DependencyGraph, error) {
+	// Try go.work first
+	if fileExists(filepath.Join(root, "go.work")) {
+		return loadGoWorkspace(root)
+	}
+
+	// Try pnpm-workspace.yaml
+	if fileExists(filepath.Join(root, "pnpm-workspace.yaml")) {
+		return loadPnpmWorkspace(root)
+	}
+
+	// Try npm workspaces (package.json with "workspaces" field)
+	if fileExists(filepath.Join(root, "package.json")) {
+		return loadNpmWorkspace(root)
+	}
+
+	return nil, fmt.Errorf("no workspace file found in %s (looked for go.work, pnpm-workspace.yaml, package.json with workspaces)", root)
+}
+
+// loadGoWorkspace parses go.work and loads each member module.
+func loadGoWorkspace(root string) (*graph.DependencyGraph, error) {
+	goWorkPath := filepath.Join(root, "go.work")
+	f, err := os.Open(goWorkPath)
+	if err != nil {
+		return nil, fmt.Errorf("open go.work: %w", err)
+	}
+	defer f.Close()
+
+	var memberDirs []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		// Match lines like: use ./path/to/module
+		// Also handles the block form: use (\n   ./path\n)
+		if strings.HasPrefix(line, "use ") {
+			path := strings.TrimSpace(strings.TrimPrefix(line, "use "))
+			// Strip parentheses for single-line block form "use ( ./foo )"
+			path = strings.Trim(path, "()")
+			path = strings.TrimSpace(path)
+			if path != "" && path != "(" {
+				memberDirs = append(memberDirs, filepath.Join(root, filepath.FromSlash(path)))
+			}
+		} else if line != "(" && line != ")" && !strings.HasPrefix(line, "//") && !strings.HasPrefix(line, "go ") && !strings.HasPrefix(line, "toolchain ") {
+			// Inside a use block, lines are bare paths
+			// We handle them if they look like relative paths
+			if strings.HasPrefix(line, "./") || strings.HasPrefix(line, "../") {
+				memberDirs = append(memberDirs, filepath.Join(root, filepath.FromSlash(line)))
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("read go.work: %w", err)
+	}
+
+	if len(memberDirs) == 0 {
+		return nil, fmt.Errorf("go.work has no 'use' directives")
+	}
+
+	goA := &goadapter.Adapter{}
+	merged := graph.NewDependencyGraph()
+	for _, memberDir := range memberDirs {
+		g, err := goA.Load(memberDir)
+		if err != nil {
+			return nil, fmt.Errorf("load workspace member %s: %w", memberDir, err)
+		}
+		merged = mergeGraphs(merged, g)
+	}
+	return merged, nil
+}
+
+// loadPnpmWorkspace parses pnpm-workspace.yaml and loads each member.
+func loadPnpmWorkspace(root string) (*graph.DependencyGraph, error) {
+	data, err := os.ReadFile(filepath.Join(root, "pnpm-workspace.yaml"))
+	if err != nil {
+		return nil, fmt.Errorf("read pnpm-workspace.yaml: %w", err)
+	}
+
+	// Simple YAML parsing: look for lines under "packages:" that start with "  - "
+	var patterns []string
+	inPackages := false
+	for _, line := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimRight(line, " \t\r")
+		if trimmed == "packages:" {
+			inPackages = true
+			continue
+		}
+		if inPackages {
+			// A new top-level key ends the packages block
+			if len(trimmed) > 0 && trimmed[0] != ' ' && trimmed[0] != '\t' && trimmed[0] != '#' && trimmed[0] != '-' {
+				inPackages = false
+				continue
+			}
+			// Strip list prefix "  - " or "- "
+			item := strings.TrimSpace(trimmed)
+			if strings.HasPrefix(item, "- ") {
+				item = strings.TrimPrefix(item, "- ")
+				item = strings.Trim(item, "\"'")
+				patterns = append(patterns, item)
+			} else if strings.HasPrefix(item, "-") {
+				item = strings.TrimPrefix(item, "-")
+				item = strings.TrimSpace(item)
+				item = strings.Trim(item, "\"'")
+				if item != "" {
+					patterns = append(patterns, item)
+				}
+			}
+		}
+	}
+
+	memberDirs, err := resolveGlobPatterns(root, patterns)
+	if err != nil {
+		return nil, fmt.Errorf("resolve pnpm workspace patterns: %w", err)
+	}
+
+	return loadNodeMemberDirs(memberDirs)
+}
+
+// loadNpmWorkspace parses package.json workspaces field and loads each member.
+func loadNpmWorkspace(root string) (*graph.DependencyGraph, error) {
+	data, err := os.ReadFile(filepath.Join(root, "package.json"))
+	if err != nil {
+		return nil, fmt.Errorf("read package.json: %w", err)
+	}
+
+	var pkg struct {
+		Workspaces []string `json:"workspaces"`
+	}
+	if err := json.Unmarshal(data, &pkg); err != nil {
+		return nil, fmt.Errorf("parse package.json: %w", err)
+	}
+	if len(pkg.Workspaces) == 0 {
+		return nil, fmt.Errorf("package.json has no 'workspaces' field")
+	}
+
+	memberDirs, err := resolveGlobPatterns(root, pkg.Workspaces)
+	if err != nil {
+		return nil, fmt.Errorf("resolve npm workspace patterns: %w", err)
+	}
+
+	return loadNodeMemberDirs(memberDirs)
+}
+
+// resolveGlobPatterns expands glob patterns relative to root into concrete
+// directories that contain a package.json file.
+func resolveGlobPatterns(root string, patterns []string) ([]string, error) {
+	var dirs []string
+	seen := make(map[string]bool)
+	for _, pattern := range patterns {
+		// Strip trailing "/**" or "/*" — filepath.Glob handles one level; we
+		// only need the immediate members.
+		globPat := pattern
+		if strings.HasSuffix(globPat, "/**") {
+			globPat = strings.TrimSuffix(globPat, "/**") + "/*"
+		}
+
+		absGlob := filepath.Join(root, filepath.FromSlash(globPat))
+		matches, err := filepath.Glob(absGlob)
+		if err != nil {
+			return nil, fmt.Errorf("glob %q: %w", absGlob, err)
+		}
+
+		for _, m := range matches {
+			info, err := os.Stat(m)
+			if err != nil || !info.IsDir() {
+				continue
+			}
+			if !fileExists(filepath.Join(m, "package.json")) {
+				continue
+			}
+			if !seen[m] {
+				seen[m] = true
+				dirs = append(dirs, m)
+			}
+		}
+	}
+	return dirs, nil
+}
+
+// loadNodeMemberDirs loads each member directory with the Node adapter and
+// merges the resulting graphs.
+func loadNodeMemberDirs(memberDirs []string) (*graph.DependencyGraph, error) {
+	if len(memberDirs) == 0 {
+		return nil, fmt.Errorf("no workspace members found")
+	}
+
+	nodeA := &nodeadapter.Adapter{}
+	merged := graph.NewDependencyGraph()
+	for _, memberDir := range memberDirs {
+		g, err := nodeA.Load(memberDir)
+		if err != nil {
+			return nil, fmt.Errorf("load workspace member %s: %w", memberDir, err)
+		}
+		merged = mergeGraphs(merged, g)
+	}
+	return merged, nil
 }

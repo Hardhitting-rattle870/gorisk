@@ -1,9 +1,13 @@
 package health
 
 import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
+	"github.com/1homsi/gorisk/internal/cache"
 	"github.com/1homsi/gorisk/internal/report"
 )
 
@@ -21,6 +25,15 @@ type HealthTiming struct {
 	OsvTime     time.Duration
 	Workers     int
 	ModuleCount int
+}
+
+const healthCacheTTL = 24 * time.Hour
+
+// healthCacheKey returns the sha256 hex key for a module health entry.
+func healthCacheKey(modulePath, version string) string {
+	raw := fmt.Sprintf("health:%s@%s", modulePath, version)
+	sum := sha256.Sum256([]byte(raw))
+	return fmt.Sprintf("%x", sum)
 }
 
 // ScoreAll scores all modules in parallel and returns health reports with timing data.
@@ -83,8 +96,20 @@ func ScoreAll(mods []ModuleRef) ([]report.HealthReport, HealthTiming) {
 	return results, total
 }
 
-// scoreWithTiming scores a single module and records per-API timing.
+// scoreWithTiming scores a single module, consulting the file-backed cache first.
+// On a cache miss it fetches from GitHub/OSV and stores the result for 24 h.
 func scoreWithTiming(modulePath, version string) (report.HealthReport, HealthTiming) {
+	key := healthCacheKey(modulePath, version)
+
+	// Cache read — return immediately on hit.
+	if cached, ok := cache.Get(key); ok {
+		var hr report.HealthReport
+		if err := json.Unmarshal(cached, &hr); err == nil {
+			return hr, HealthTiming{}
+		}
+	}
+
+	// Cache miss: perform the full fetch.
 	var t HealthTiming
 	hr := report.HealthReport{
 		Module:  modulePath,
@@ -162,6 +187,11 @@ func scoreWithTiming(modulePath, version string) (report.HealthReport, HealthTim
 	}
 	if hr.Score > 100 {
 		hr.Score = 100
+	}
+
+	// Cache write — best-effort; ignore errors.
+	if encoded, err := json.Marshal(hr); err == nil {
+		_ = cache.Set(key, encoded, healthCacheTTL)
 	}
 
 	return hr, t

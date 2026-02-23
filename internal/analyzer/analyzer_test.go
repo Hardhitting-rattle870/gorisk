@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -321,5 +322,138 @@ func TestMergeGraphsWithNilMain(t *testing.T) {
 	// When graphA.Main is nil, should use graphB.Main
 	if merged.Main == nil || merged.Main.Path != "moduleB" {
 		t.Error("Expected merged.Main to be from graphB when graphA.Main is nil")
+	}
+}
+
+// --- Workspace tests ---
+
+func TestLoadWorkspaceGoWork(t *testing.T) {
+	root := t.TempDir()
+
+	// Create two minimal Go modules under the workspace root.
+	moduleA := filepath.Join(root, "moduleA")
+	moduleB := filepath.Join(root, "moduleB")
+	if err := os.MkdirAll(moduleA, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(moduleB, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write minimal go.mod files.
+	if err := os.WriteFile(filepath.Join(moduleA, "go.mod"), []byte("module example.com/moduleA\n\ngo 1.21\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(moduleB, "go.mod"), []byte("module example.com/moduleB\n\ngo 1.21\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write a go.work file referencing both modules.
+	goWork := "go 1.21\n\nuse (\n\t./moduleA\n\t./moduleB\n)\n"
+	if err := os.WriteFile(filepath.Join(root, "go.work"), []byte(goWork), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	g, err := LoadWorkspace(root)
+	if err != nil {
+		t.Fatalf("LoadWorkspace() error: %v", err)
+	}
+	if g == nil {
+		t.Fatal("LoadWorkspace() returned nil graph")
+	}
+
+	// Both modules should appear in the merged graph.
+	if _, ok := g.Modules["example.com/moduleA"]; !ok {
+		t.Error("merged graph missing example.com/moduleA")
+	}
+	if _, ok := g.Modules["example.com/moduleB"]; !ok {
+		t.Error("merged graph missing example.com/moduleB")
+	}
+}
+
+func TestLoadWorkspaceNpmWorkspaces(t *testing.T) {
+	root := t.TempDir()
+
+	// Create packages/* subdirectory layout.
+	pkgsDir := filepath.Join(root, "packages")
+	if err := os.MkdirAll(pkgsDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create two sub-packages each with a minimal package.json and
+	// package-lock.json so the node adapter can load them.
+	for _, name := range []string{"alpha", "beta"} {
+		subDir := filepath.Join(pkgsDir, name)
+		if err := os.MkdirAll(subDir, 0750); err != nil {
+			t.Fatal(err)
+		}
+		pkgJSON := fmt.Sprintf(`{"name": "%s", "version": "1.0.0"}`, name)
+		if err := os.WriteFile(filepath.Join(subDir, "package.json"), []byte(pkgJSON), 0600); err != nil {
+			t.Fatal(err)
+		}
+		// Minimal v2 package-lock.json (no dependencies).
+		lockJSON := `{"name":"` + name + `","version":"1.0.0","lockfileVersion":2,"requires":true,"packages":{"":{"name":"` + name + `","version":"1.0.0"}}}`
+		if err := os.WriteFile(filepath.Join(subDir, "package-lock.json"), []byte(lockJSON), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Root package.json with workspaces field.
+	rootPkgJSON := `{"name": "root", "version": "1.0.0", "workspaces": ["packages/*"]}`
+	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(rootPkgJSON), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	g, err := LoadWorkspace(root)
+	if err != nil {
+		t.Fatalf("LoadWorkspace() error: %v", err)
+	}
+	if g == nil {
+		t.Fatal("LoadWorkspace() returned nil graph")
+	}
+	// The merged graph should be non-nil and have been produced from both members.
+	// Both member loads succeeded, so Modules map should be populated.
+	if len(g.Modules) == 0 && len(g.Packages) == 0 {
+		t.Log("warning: merged graph has no modules or packages (members may have had no deps)")
+	}
+}
+
+func TestLoadWorkspaceNoWorkspaceFile(t *testing.T) {
+	root := t.TempDir()
+	_, err := LoadWorkspace(root)
+	if err == nil {
+		t.Error("expected error when no workspace file found, got nil")
+	}
+}
+
+func TestLoadWorkspacePnpm(t *testing.T) {
+	root := t.TempDir()
+
+	// Create packages/* layout.
+	subDir := filepath.Join(root, "packages", "gamma")
+	if err := os.MkdirAll(subDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	pkgJSON := `{"name": "gamma", "version": "1.0.0"}`
+	if err := os.WriteFile(filepath.Join(subDir, "package.json"), []byte(pkgJSON), 0600); err != nil {
+		t.Fatal(err)
+	}
+	lockJSON := `{"name":"gamma","version":"1.0.0","lockfileVersion":2,"requires":true,"packages":{"":{"name":"gamma","version":"1.0.0"}}}`
+	if err := os.WriteFile(filepath.Join(subDir, "package-lock.json"), []byte(lockJSON), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// pnpm-workspace.yaml
+	pnpmYAML := "packages:\n  - 'packages/*'\n"
+	if err := os.WriteFile(filepath.Join(root, "pnpm-workspace.yaml"), []byte(pnpmYAML), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	g, err := LoadWorkspace(root)
+	if err != nil {
+		t.Fatalf("LoadWorkspace() pnpm error: %v", err)
+	}
+	if g == nil {
+		t.Fatal("LoadWorkspace() returned nil graph for pnpm workspace")
 	}
 }

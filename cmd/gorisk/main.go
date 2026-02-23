@@ -14,10 +14,12 @@ import (
 	initcmd "github.com/1homsi/gorisk/cmd/gorisk/init"
 	integritycmd "github.com/1homsi/gorisk/cmd/gorisk/integrity"
 	"github.com/1homsi/gorisk/cmd/gorisk/licenses"
+	"github.com/1homsi/gorisk/cmd/gorisk/plugins"
 	goriskpr "github.com/1homsi/gorisk/cmd/gorisk/pr"
 	goriskreach "github.com/1homsi/gorisk/cmd/gorisk/reachability"
 	"github.com/1homsi/gorisk/cmd/gorisk/sbom"
 	"github.com/1homsi/gorisk/cmd/gorisk/scan"
+	"github.com/1homsi/gorisk/cmd/gorisk/serve"
 	topologycmd "github.com/1homsi/gorisk/cmd/gorisk/topology"
 	"github.com/1homsi/gorisk/cmd/gorisk/trace"
 	"github.com/1homsi/gorisk/cmd/gorisk/upgrade"
@@ -72,6 +74,10 @@ func main() {
 		os.Exit(initcmd.Run(os.Args[2:]))
 	case "validate-policy":
 		os.Exit(validatepolicy.Run(os.Args[2:]))
+	case "plugins":
+		os.Exit(plugins.Run(os.Args[2:]))
+	case "serve":
+		os.Exit(serve.Run(os.Args[2:]))
 	case "version":
 		fmt.Println(version)
 	default:
@@ -104,5 +110,7 @@ Usage:
   gorisk integrity      [--json] [--lang auto|go|node]
   gorisk init           [--force] [--stdout]
   gorisk validate-policy  [--policy file.json]
+  gorisk plugins          [list|install|remove] [args...]
+  gorisk serve            [--port 8080] [--host 127.0.0.1]
   gorisk version`)
 }

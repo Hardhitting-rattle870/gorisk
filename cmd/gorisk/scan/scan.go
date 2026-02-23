@@ -230,6 +230,7 @@ func Run(args []string) int {
 	topN := fs.Int("top", 0, "show only top N packages by final score (0 = all)")
 	focus := fs.String("focus", "", "filter output to this module and its transitive deps")
 	hideLowConf := fs.Bool("hide-low-confidence", false, "filter findings with confidence < 0.65 (alias for --confidence-threshold 0.65)")
+	workspace := fs.Bool("workspace", false, "treat dir as a workspace root and merge all member graphs")
 	fs.Parse(args)
 
 	dir, err := os.Getwd()
@@ -319,7 +320,12 @@ func Run(args []string) int {
 
 	// Phase: load graph
 	t0 := time.Now()
-	g, err := a.Load(dir)
+	var g *graph.DependencyGraph
+	if *workspace {
+		g, err = analyzer.LoadWorkspace(dir)
+	} else {
+		g, err = a.Load(dir)
+	}
 	loadDur := time.Since(t0)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "load graph:", err)

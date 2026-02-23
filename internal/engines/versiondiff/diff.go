@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -21,6 +22,13 @@ type PackageDiff struct {
 	RiskDelta  float64
 }
 
+// CapabilityChange summarises capability additions and removals for a package.
+type CapabilityChange struct {
+	Package string   `json:"package"`
+	Added   []string `json:"added,omitempty"`
+	Removed []string `json:"removed,omitempty"`
+}
+
 // DiffReport summarises risk changes between two lockfile states.
 type DiffReport struct {
 	Base             string
@@ -28,6 +36,8 @@ type DiffReport struct {
 	Escalations      []PackageDiff
 	BlastRadiusDelta int     // change in affected-package count
 	Score            float64 // 0-20
+	// UpgradeSummary lists per-package capability changes across the diff.
+	UpgradeSummary []CapabilityChange `json:"upgrade_summary,omitempty"`
 }
 
 // Compute compares the current lockfile in dir against base (a git ref or lockfile path).
@@ -121,6 +131,7 @@ func computeGo(dir, base string) (DiffReport, error) {
 		}
 	}
 
+	r.UpgradeSummary = buildUpgradeSummary(baseMods, currentMods, inferGoCaps)
 	r.Score = computeScore(r)
 	return r, nil
 }
@@ -244,6 +255,7 @@ func computeNode(dir, base string) (DiffReport, error) {
 		}
 	}
 
+	r.UpgradeSummary = buildUpgradeSummary(basePkgs, currentPkgs, inferNodeCaps)
 	r.Score = computeScore(r)
 	return r, nil
 }
@@ -413,6 +425,90 @@ func inferNodeCaps(name string) []string {
 		caps = append(caps, "fs:read")
 	}
 	return caps
+}
+
+// ---------------------------------------------------------------------------
+// Upgrade summary builder
+// ---------------------------------------------------------------------------
+
+// buildUpgradeSummary computes per-package capability changes between base and
+// current package maps using the provided capability inference function.
+// Results are sorted by package name for determinism.
+func buildUpgradeSummary(base, current map[string]string, inferCaps func(string) []string) []CapabilityChange {
+	// Collect all package names from both maps.
+	allPkgs := make(map[string]struct{})
+	for name := range base {
+		allPkgs[name] = struct{}{}
+	}
+	for name := range current {
+		allPkgs[name] = struct{}{}
+	}
+
+	var changes []CapabilityChange
+	for pkg := range allPkgs {
+		_, inBase := base[pkg]
+		_, inCurrent := current[pkg]
+
+		if !inBase && !inCurrent {
+			continue
+		}
+
+		var oldCaps, newCaps []string
+		if inBase {
+			oldCaps = inferCaps(pkg)
+		}
+		if inCurrent {
+			newCaps = inferCaps(pkg)
+		}
+
+		// Build sets for comparison.
+		oldSet := make(map[string]struct{}, len(oldCaps))
+		for _, c := range oldCaps {
+			oldSet[c] = struct{}{}
+		}
+		newSet := make(map[string]struct{}, len(newCaps))
+		for _, c := range newCaps {
+			newSet[c] = struct{}{}
+		}
+
+		var added, removed []string
+		for _, c := range newCaps {
+			if _, existed := oldSet[c]; !existed {
+				added = append(added, c)
+			}
+		}
+		for _, c := range oldCaps {
+			if _, existed := newSet[c]; !existed {
+				removed = append(removed, c)
+			}
+		}
+
+		if len(added) == 0 && len(removed) == 0 {
+			continue
+		}
+
+		sort.Strings(added)
+		sort.Strings(removed)
+
+		// Format package with version for clarity.
+		label := pkg
+		if v, ok := current[pkg]; ok {
+			label = pkg + "@" + v
+		} else if v, ok := base[pkg]; ok {
+			label = pkg + "@" + v + " (removed)"
+		}
+
+		changes = append(changes, CapabilityChange{
+			Package: label,
+			Added:   added,
+			Removed: removed,
+		})
+	}
+
+	sort.Slice(changes, func(i, j int) bool {
+		return changes[i].Package < changes[j].Package
+	})
+	return changes
 }
 
 // ---------------------------------------------------------------------------
