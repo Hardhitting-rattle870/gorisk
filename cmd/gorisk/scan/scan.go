@@ -497,8 +497,9 @@ func Run(args []string) int {
 
 		var reachable *bool
 		if astResult.UsedInterproc {
-			v := astResult.Bundle.ReachabilityHints[cr.Package]
-			reachable = &v
+			if v, ok := astResult.Bundle.ReachabilityHints[cr.Package]; ok {
+				reachable = &v
+			}
 		}
 
 		finalScore := priority.ComputeFinal(

@@ -66,7 +66,7 @@ func Run(args []string) int {
 	// Augment risks with composite scores
 	type moduleRiskWithComposite struct {
 		transitive.ModuleRisk
-		CompositeScore float64
+		Final priority.FinalScore
 	}
 
 	var risksWithComposite []moduleRiskWithComposite
@@ -83,8 +83,9 @@ func Run(args []string) int {
 
 		var reachable *bool
 		if astResult.UsedInterproc {
-			v := astResult.Bundle.ReachabilityHints[r.Module]
-			reachable = &v
+			if v, ok := astResult.Bundle.ReachabilityHints[r.Module]; ok {
+				reachable = &v
+			}
 		}
 		final := priority.ComputeFinal(
 			maxCaps,
@@ -96,33 +97,53 @@ func Run(args []string) int {
 		)
 
 		risksWithComposite = append(risksWithComposite, moduleRiskWithComposite{
-			ModuleRisk:     r,
-			CompositeScore: final.Final,
+			ModuleRisk: r,
+			Final:      final,
 		})
 	}
 
 	minLevel := capability.RiskValue(*minRisk)
 	var filtered []moduleRiskWithComposite
 	for _, r := range risksWithComposite {
-		if capability.RiskValue(r.RiskLevel) >= minLevel {
+		if r.Final.Final >= float64(minLevel) {
 			filtered = append(filtered, r)
 		}
 	}
 
 	// Sort by composite score instead of effective score
 	sort.Slice(filtered, func(i, j int) bool {
-		return filtered[i].CompositeScore > filtered[j].CompositeScore
+		return filtered[i].Final.Final > filtered[j].Final.Final
 	})
 
 	if *jsonOut {
+		type jsonModule struct {
+			Module          string  `json:"module"`
+			DirectScore     int     `json:"direct_score"`
+			TransitiveScore int     `json:"transitive_score"`
+			EffectiveScore  int     `json:"effective_score"`
+			RiskLevel       string  `json:"risk_level"`
+			Depth           int     `json:"depth"`
+			FinalScore      float64 `json:"final_score"`
+			FinalLevel      string  `json:"final_level"`
+			SemanticScore   float64 `json:"semantic_score"`
+		}
+		out := make([]jsonModule, 0, len(filtered))
+		for _, r := range filtered {
+			out = append(out, jsonModule{
+				Module:          r.Module,
+				DirectScore:     r.DirectScore,
+				TransitiveScore: r.TransitiveScore,
+				EffectiveScore:  r.EffectiveScore,
+				RiskLevel:       r.RiskLevel,
+				Depth:           r.Depth,
+				FinalScore:      r.Final.Final,
+				FinalLevel:      r.Final.Level,
+				SemanticScore:   r.Final.Semantic,
+			})
+		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		// Convert back to plain ModuleRisk for JSON output
-		plainRisks := make([]transitive.ModuleRisk, 0, len(filtered))
-		for _, r := range filtered {
-			plainRisks = append(plainRisks, r.ModuleRisk)
-		}
-		enc.Encode(plainRisks)
+		enc.Encode(out)
 		return 0
 	}
 
@@ -150,15 +171,15 @@ func Run(args []string) int {
 	fmt.Println(strings.Repeat("─", 110))
 
 	for _, r := range filtered {
-		col := colorForRisk(r.RiskLevel)
+		col := colorForRisk(r.Final.Level)
 		fmt.Printf("%-55s  %6d  %6d  %6d  %8.1f  %5d  %s%-6s%s\n",
 			r.Module,
 			r.DirectScore,
 			r.TransitiveScore,
 			r.EffectiveScore,
-			r.CompositeScore,
+			r.Final.Final,
 			r.Depth,
-			col, r.RiskLevel, reset,
+			col, r.Final.Level, reset,
 		)
 	}
 
