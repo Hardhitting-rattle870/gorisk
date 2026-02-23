@@ -280,6 +280,25 @@ func WriteTaintFindings(w io.Writer, findings []taint.TaintFinding) {
 			flow,
 			f.Note,
 			confStr)
+		if f.SourceFunc != "" || f.SinkFunc != "" {
+			fmt.Fprintf(w, "           source_func=%s  sink_func=%s\n", f.SourceFunc, f.SinkFunc)
+		}
+		if len(f.CallStack) > 0 {
+			fmt.Fprintf(w, "           path: %s\n", strings.Join(f.CallStack, " -> "))
+		}
+		if f.Sanitized {
+			fmt.Fprintf(w, "           sanitized=true\n")
+		}
+		if f.ConfidenceReason != "" {
+			fmt.Fprintf(w, "           confidence_reason=%s\n", f.ConfidenceReason)
+		}
+		if f.Uncertainty {
+			reason := f.UncertaintyReason
+			if reason == "" {
+				reason = "flow inferred"
+			}
+			fmt.Fprintf(w, "           uncertainty=true (%s)\n", reason)
+		}
 	}
 	fmt.Fprintln(w)
 }

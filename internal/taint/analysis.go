@@ -84,12 +84,17 @@ func (ta *TaintAnalysis) AnalyzeInterprocedural() []TaintFinding {
 					}
 
 					finding := TaintFinding{
-						Package:    pkg,
-						Source:     rule.Source,
-						Sink:       rule.Sink,
-						Risk:       risk,
-						Note:       rule.Note,
-						Confidence: conf,
+						Package:           pkg,
+						Module:            pkg,
+						Source:            rule.Source,
+						Sink:              rule.Sink,
+						Risk:              risk,
+						Note:              rule.Note,
+						Confidence:        conf,
+						ConfidenceReason:  "min(source_confidence, sink_confidence)",
+						Sanitized:         flow.Sanitized,
+						Uncertainty:       flow.Uncertainty,
+						UncertaintyReason: flow.Reason,
 						EvidenceChain: []TaintEvidence{
 							{Capability: rule.Source, Confidence: sourceConf},
 							{Capability: rule.Sink, Confidence: sinkConf},
@@ -132,6 +137,8 @@ type TaintFlow struct {
 	SinkFunction   ir.Symbol
 	CallPath       []ir.CallEdge
 	Sanitized      bool // crypto/validation in path
+	Uncertainty    bool
+	Reason         string
 }
 
 // traceTaintFlow finds the multi-hop call path from a source-carrying node to
@@ -154,6 +161,7 @@ func (ta *TaintAnalysis) traceTaintFlow(startNode ir.ContextNode, source, sink c
 			SinkFunction:   startNode.Function,
 			CallPath:       []ir.CallEdge{},
 			Sanitized:      startSanitized,
+			Uncertainty:    false,
 		}
 	}
 
@@ -192,6 +200,7 @@ func (ta *TaintAnalysis) traceTaintFlow(startNode ir.ContextNode, source, sink c
 				SinkFunction:   item.node.Function,
 				CallPath:       item.path,
 				Sanitized:      sanitized,
+				Uncertainty:    false,
 			}
 		}
 
@@ -216,6 +225,8 @@ func (ta *TaintAnalysis) traceTaintFlow(startNode ir.ContextNode, source, sink c
 		SinkFunction:   startNode.Function,
 		CallPath:       []ir.CallEdge{},
 		Sanitized:      startSanitized,
+		Uncertainty:    true,
+		Reason:         "sink inferred from summary; concrete call path not found",
 	}
 }
 

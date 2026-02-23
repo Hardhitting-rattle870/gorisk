@@ -16,14 +16,18 @@ type TaintEvidence struct {
 
 // TaintFinding records a single source→sink capability pair detected in a package.
 type TaintFinding struct {
-	Package       string                `json:"package"`
-	Module        string                `json:"module,omitempty"`
-	Source        capability.Capability `json:"source"`
-	Sink          capability.Capability `json:"sink"`
-	Risk          string                `json:"risk"`
-	Note          string                `json:"note"`
-	Confidence    float64               `json:"confidence"`               // min(source_conf, sink_conf)
-	EvidenceChain []TaintEvidence       `json:"evidence_chain,omitempty"` // [source_evidence, sink_evidence]
+	Package           string                `json:"package"`
+	Module            string                `json:"module,omitempty"`
+	Source            capability.Capability `json:"source"`
+	Sink              capability.Capability `json:"sink"`
+	Risk              string                `json:"risk"`
+	Note              string                `json:"note"`
+	Confidence        float64               `json:"confidence"`               // min(source_conf, sink_conf)
+	EvidenceChain     []TaintEvidence       `json:"evidence_chain,omitempty"` // [source_evidence, sink_evidence]
+	Sanitized         bool                  `json:"sanitized,omitempty"`
+	ConfidenceReason  string                `json:"confidence_reason,omitempty"`
+	Uncertainty       bool                  `json:"uncertainty,omitempty"`
+	UncertaintyReason string                `json:"uncertainty_reason,omitempty"`
 
 	// Interprocedural fields (optional, populated by interprocedural analysis)
 	SourceFunc string   `json:"source_func,omitempty"` // Function where source originates

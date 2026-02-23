@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/1homsi/gorisk/internal/analyzer"
+	"github.com/1homsi/gorisk/internal/astpipeline"
 	"github.com/1homsi/gorisk/internal/capability"
 	"github.com/1homsi/gorisk/internal/report"
 	"github.com/1homsi/gorisk/internal/taint"
@@ -75,7 +76,21 @@ func Run(args []string) int {
 		return entries[i].Package < entries[j].Package
 	})
 
+	resolvedLang := analyzer.ResolveLang(*lang, dir)
+	astResult := astpipeline.Analyze(dir, resolvedLang, g)
 	taintFindings := taint.Analyze(g.Packages)
+	if astResult.UsedInterproc && len(astResult.Bundle.TaintFindings) > 0 {
+		taintFindings = astResult.Bundle.TaintFindings
+	}
+	if *capFilter != "" {
+		filtered := taintFindings[:0:0]
+		for _, tf := range taintFindings {
+			if string(tf.Source) == *capFilter || string(tf.Sink) == *capFilter {
+				filtered = append(filtered, tf)
+			}
+		}
+		taintFindings = filtered
+	}
 
 	if *jsonOut {
 		return printJSONWithTaint(entries, taintFindings)

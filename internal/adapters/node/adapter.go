@@ -217,6 +217,11 @@ func runInterproceduralAnalysis(g *graph.DependencyGraph) error {
 	return nil
 }
 
+// BuildIRGraph builds a function-level IR graph for a Node dependency graph.
+func BuildIRGraph(g *graph.DependencyGraph) ir.IRGraph {
+	return buildNodeFunctionIRGraph(g)
+}
+
 // buildNodeFunctionIRGraph converts packages into a function-level IRGraph.
 // Uses funcdetector.go to parse JavaScript/TypeScript and build a function-level call graph.
 func buildNodeFunctionIRGraph(g *graph.DependencyGraph) ir.IRGraph {

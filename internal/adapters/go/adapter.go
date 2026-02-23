@@ -68,6 +68,32 @@ func (a *Adapter) Load(dir string) (*graph.DependencyGraph, error) {
 	return g, nil
 }
 
+// BuildIRGraph builds a function-level IR graph for main-module Go packages.
+func BuildIRGraph(dir string, g *graph.DependencyGraph) (ir.IRGraph, error) {
+	if g == nil || g.Main == nil {
+		return ir.IRGraph{Functions: map[string]ir.FunctionCaps{}, Calls: []ir.CallEdge{}}, nil
+	}
+	mainPkgs := make(map[string]*Package)
+	for _, pkg := range g.Packages {
+		if pkg.Module != nil && pkg.Module.Main && pkg.Dir != "" && len(pkg.GoFiles) > 0 {
+			mainPkgs[pkg.ImportPath] = &Package{
+				ImportPath: pkg.ImportPath,
+				Dir:        pkg.Dir,
+				GoFiles:    pkg.GoFiles,
+				Module:     &Module{Path: pkg.Module.Path, Main: pkg.Module.Main},
+			}
+		}
+	}
+	if len(mainPkgs) == 0 {
+		return ir.IRGraph{Functions: map[string]ir.FunctionCaps{}, Calls: []ir.CallEdge{}}, nil
+	}
+	pkgCaps, pkgEdges, err := BuildModuleGraph(dir, mainPkgs)
+	if err != nil {
+		return ir.IRGraph{}, err
+	}
+	return interproc.ConsolidateIR(pkgCaps, pkgEdges), nil
+}
+
 // graphPackageAdapter adapts graph.Package to the minimal Package interface.
 type graphPackageAdapter struct {
 	ImportPath string

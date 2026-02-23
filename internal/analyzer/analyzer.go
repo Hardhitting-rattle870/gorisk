@@ -110,6 +110,15 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
+// ResolveLang resolves "auto" to a concrete language key using project detection.
+// It may return "multi".
+func ResolveLang(lang, dir string) string {
+	if lang == "auto" || lang == "" {
+		return detect(dir)
+	}
+	return lang
+}
+
 // multiAnalyzer runs both Go and Node analyzers and merges the results.
 type multiAnalyzer struct{}
 

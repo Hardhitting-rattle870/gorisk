@@ -11,6 +11,9 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/1homsi/gorisk/internal/analyzer"
+	"github.com/1homsi/gorisk/internal/astpipeline"
 )
 
 type event struct {
@@ -30,6 +33,8 @@ func Run(args []string) int {
 		return 2
 	}
 
+	astEvents := buildASTTraceEvents()
+
 	bin, err := buildBinary(rest[0])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "build:", err)
@@ -48,6 +53,7 @@ func Run(args []string) int {
 		fmt.Fprintln(os.Stderr, "trace:", err)
 		return 2
 	}
+	events = append(astEvents, events...)
 
 	if *jsonOut {
 		printJSON(events)
@@ -251,6 +257,7 @@ func printText(events []event) {
 	const (
 		red    = "\033[31m"
 		yellow = "\033[33m"
+		green  = "\033[32m"
 		cyan   = "\033[36m"
 		bold   = "\033[1m"
 		reset  = "\033[0m"
@@ -262,6 +269,7 @@ func printText(events []event) {
 	}
 
 	for _, s := range []struct{ kind, label, col string }{
+		{"ast_call", "AST Interprocedural Calls", green},
 		{"filesystem", "Filesystem Access", yellow},
 		{"network", "Network Calls", red},
 		{"subprocess", "Subprocess Execution", cyan},
@@ -289,4 +297,49 @@ func printJSON(events []event) {
 		fmt.Printf("  {\"kind\":%q,\"detail\":%q}%s\n", e.kind, e.detail, comma)
 	}
 	fmt.Println("]")
+}
+
+func buildASTTraceEvents() []event {
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil
+	}
+	a, err := analyzer.ForLang("auto", dir)
+	if err != nil {
+		return nil
+	}
+	g, err := a.Load(dir)
+	if err != nil {
+		return nil
+	}
+	lang := analyzer.ResolveLang("auto", dir)
+	res := astpipeline.Analyze(dir, lang, g)
+	if !res.UsedInterproc || res.Bundle.CallGraph == nil {
+		return nil
+	}
+	var out []event
+	seen := map[string]bool{}
+	limit := 24
+	for callerKey, callees := range res.Bundle.CallGraph.Edges {
+		if len(out) >= limit {
+			break
+		}
+		caller := res.Bundle.CallGraph.Nodes[callerKey]
+		conf := res.Bundle.CallGraph.Summaries[callerKey].Confidence
+		for _, callee := range callees {
+			if len(out) >= limit {
+				break
+			}
+			k := caller.Function.String() + "->" + callee.Function.String()
+			if seen[k] {
+				continue
+			}
+			seen[k] = true
+			out = append(out, event{
+				kind:   "ast_call",
+				detail: fmt.Sprintf("%s -> %s (conf=%.2f)", caller.Function.String(), callee.Function.String(), conf),
+			})
+		}
+	}
+	return out
 }

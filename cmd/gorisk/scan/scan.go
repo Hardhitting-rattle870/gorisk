@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/1homsi/gorisk/internal/analyzer"
+	"github.com/1homsi/gorisk/internal/astpipeline"
 	"github.com/1homsi/gorisk/internal/capability"
 	"github.com/1homsi/gorisk/internal/engines/integrity"
 	"github.com/1homsi/gorisk/internal/engines/topology"
@@ -301,7 +302,12 @@ func Run(args []string) int {
 	wg.Wait()
 	engineDur := time.Since(t2)
 
+	resolvedLang := analyzer.ResolveLang(*lang, dir)
+	astResult := astpipeline.Analyze(dir, resolvedLang, g)
 	taintFindings := taint.Analyze(g.Packages)
+	if astResult.UsedInterproc && len(astResult.Bundle.TaintFindings) > 0 {
+		taintFindings = astResult.Bundle.TaintFindings
+	}
 	filteredTaint := filterTaintFindings(taintFindings, taintExceptions)
 
 	sr := report.ScanReport{
@@ -364,9 +370,15 @@ func Run(args []string) int {
 			}
 		}
 
+		var reachable *bool
+		if astResult.UsedInterproc {
+			v := astResult.Bundle.ReachabilityHints[cr.Package]
+			reachable = &v
+		}
+
 		finalScore := priority.ComputeFinal(
 			effectiveCaps,
-			nil,
+			reachable,
 			pkgTaints[cr.Package],
 			pkgDiffScore,
 			integScore,
@@ -375,7 +387,7 @@ func Run(args []string) int {
 
 		if capability.RiskValue(finalScore.Level) >= failLevel {
 			sr.Passed = false
-			sr.FailReason = fmt.Sprintf("package %s has %s risk (score: %.1f)", cr.Package, finalScore.Level, finalScore.Final)
+			sr.FailReason = fmt.Sprintf("package %s has %s AST-aware risk (score: %.1f)", cr.Package, finalScore.Level, finalScore.Final)
 			break
 		}
 

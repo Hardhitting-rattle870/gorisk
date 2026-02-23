@@ -15,6 +15,14 @@ type AnalysisOptions struct {
 	CacheDir           string // Cache directory (default: $HOME/.cache/gorisk)
 }
 
+// ResultBundle is the stable output of interprocedural analysis for command consumers.
+type ResultBundle struct {
+	CallGraph         *ir.CSCallGraph
+	TaintFindings     []taint.TaintFinding
+	ReachabilityHints map[string]bool // package -> has reachable sink/source signal
+	Diagnostics       []string
+}
+
 // DefaultOptions returns the default analysis configuration.
 func DefaultOptions() AnalysisOptions {
 	return AnalysisOptions{
@@ -79,6 +87,29 @@ func RunAnalysis(irGraph ir.IRGraph, opts AnalysisOptions) (*ir.CSCallGraph, []t
 	Infof("=== Analysis Complete ===")
 
 	return csGraph, findings, nil
+}
+
+// RunBundle executes interprocedural analysis and returns a stable result bundle.
+func RunBundle(irGraph ir.IRGraph, opts AnalysisOptions) (ResultBundle, error) {
+	csGraph, findings, err := RunAnalysis(irGraph, opts)
+	if err != nil {
+		return ResultBundle{}, err
+	}
+	reach := make(map[string]bool)
+	for nodeKey, node := range csGraph.Nodes {
+		s := csGraph.Summaries[nodeKey]
+		if s.Sinks.Score > 0 || s.Transitive.Score > 0 {
+			if node.Function.Package != "" {
+				reach[node.Function.Package] = true
+			}
+		}
+	}
+	return ResultBundle{
+		CallGraph:         csGraph,
+		TaintFindings:     findings,
+		ReachabilityHints: reach,
+		Diagnostics:       []string{"interproc analysis active"},
+	}, nil
 }
 
 // ComputeFixpointCached is a wrapper around ComputeFixpoint that uses caching.

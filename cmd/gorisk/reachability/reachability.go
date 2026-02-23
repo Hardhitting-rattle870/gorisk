@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/1homsi/gorisk/internal/analyzer"
+	"github.com/1homsi/gorisk/internal/astpipeline"
 	"github.com/1homsi/gorisk/internal/capability"
 	"github.com/1homsi/gorisk/internal/reachability"
 )
@@ -46,6 +47,22 @@ func Run(args []string) int {
 		return 2
 	}
 
+	// Optional AST/interproc hints (best effort).
+	hints := make(map[string]bool)
+	flowCount := make(map[string]int)
+	if a, err := analyzer.ForLang(*lang, dir); err == nil {
+		if g, err := a.Load(dir); err == nil {
+			resolvedLang := analyzer.ResolveLang(*lang, dir)
+			ast := astpipeline.Analyze(dir, resolvedLang, g)
+			if ast.UsedInterproc {
+				hints = ast.Bundle.ReachabilityHints
+				for _, f := range ast.Bundle.TaintFindings {
+					flowCount[f.Package]++
+				}
+			}
+		}
+	}
+
 	minLevel := capability.RiskValue(*minRisk)
 	var filtered []reachability.ReachabilityReport
 	for _, r := range reports {
@@ -56,20 +73,24 @@ func Run(args []string) int {
 
 	if *jsonOut {
 		type jsonEntry struct {
-			Package   string   `json:"package"`
-			Reachable bool     `json:"reachable"`
-			Risk      string   `json:"risk"`
-			Score     int      `json:"score"`
-			Caps      []string `json:"capabilities"`
+			Package          string   `json:"package"`
+			Reachable        bool     `json:"reachable"`
+			Risk             string   `json:"risk"`
+			Score            int      `json:"score"`
+			Caps             []string `json:"capabilities"`
+			ASTReachableHint bool     `json:"ast_reachable_hint,omitempty"`
+			ASTTaintFlows    int      `json:"ast_taint_flows,omitempty"`
 		}
 		var out []jsonEntry
 		for _, r := range filtered {
 			out = append(out, jsonEntry{
-				Package:   r.Package,
-				Reachable: r.Reachable,
-				Risk:      r.ReachableCaps.RiskLevel(),
-				Score:     r.ReachableCaps.Score,
-				Caps:      r.ReachableCaps.List(),
+				Package:          r.Package,
+				Reachable:        r.Reachable,
+				Risk:             r.ReachableCaps.RiskLevel(),
+				Score:            r.ReachableCaps.Score,
+				Caps:             r.ReachableCaps.List(),
+				ASTReachableHint: hints[r.Package],
+				ASTTaintFlows:    flowCount[r.Package],
 			})
 		}
 		if out == nil {
@@ -113,6 +134,9 @@ func Run(args []string) int {
 			reachLabel,
 		)
 		fmt.Printf("  caps: %s\n", strings.Join(r.ReachableCaps.List(), ", "))
+		if hints[r.Package] {
+			fmt.Printf("  ast: reachable sink hint=true, taint_flows=%d\n", flowCount[r.Package])
+		}
 	}
 
 	if len(filtered) == 0 {

@@ -9,8 +9,10 @@ import (
 	"strings"
 
 	"github.com/1homsi/gorisk/internal/analyzer"
+	"github.com/1homsi/gorisk/internal/astpipeline"
 	"github.com/1homsi/gorisk/internal/capability"
-	"github.com/1homsi/gorisk/internal/health"
+	"github.com/1homsi/gorisk/internal/engines/integrity"
+	"github.com/1homsi/gorisk/internal/engines/topology"
 	"github.com/1homsi/gorisk/internal/priority"
 	"github.com/1homsi/gorisk/internal/taint"
 	"github.com/1homsi/gorisk/internal/transitive"
@@ -40,28 +42,23 @@ func Run(args []string) int {
 		return 2
 	}
 
-	// Compute health scores and taint findings for composite scoring
-	seen := make(map[string]bool)
-	var mods []health.ModuleRef
-	for _, mod := range g.Modules {
-		if mod.Main || seen[mod.Path] {
-			continue
-		}
-		seen[mod.Path] = true
-		mods = append(mods, health.ModuleRef{Path: mod.Path, Version: mod.Version})
-	}
-	healthReports, _ := health.ScoreAll(mods)
 	taintFindings := taint.Analyze(g.Packages)
-
-	// Build module→CVE count and module→taint findings maps
-	moduleCVEs := make(map[string]int)
-	for _, hr := range healthReports {
-		moduleCVEs[hr.Module] = hr.CVECount
+	resolvedLang := analyzer.ResolveLang(*lang, dir)
+	astResult := astpipeline.Analyze(dir, resolvedLang, g)
+	if astResult.UsedInterproc && len(astResult.Bundle.TaintFindings) > 0 {
+		taintFindings = astResult.Bundle.TaintFindings
 	}
 
-	moduleTaints := make(map[string][]taint.TaintFinding)
+	topoReport, _ := topology.Compute(dir, *lang)
+	integReport, _ := integrity.Check(dir, *lang)
+
+	moduleTaints := make(map[string][]taint.TaintFinding) // module -> taint findings
 	for _, tf := range taintFindings {
-		moduleTaints[tf.Module] = append(moduleTaints[tf.Module], tf)
+		mod := tf.Module
+		if pkg := g.Packages[tf.Package]; pkg != nil && pkg.Module != nil {
+			mod = pkg.Module.Path
+		}
+		moduleTaints[mod] = append(moduleTaints[mod], tf)
 	}
 
 	risks := transitive.ComputeTransitiveRisk(g)
@@ -84,16 +81,23 @@ func Run(args []string) int {
 			}
 		}
 
-		composite := priority.Compute(
+		var reachable *bool
+		if astResult.UsedInterproc {
+			v := astResult.Bundle.ReachabilityHints[r.Module]
+			reachable = &v
+		}
+		final := priority.ComputeFinal(
 			maxCaps,
-			nil, // reachability unknown
-			moduleCVEs[r.Module],
+			reachable,
 			moduleTaints[r.Module],
+			0,
+			integReport.Score,
+			topoReport.Score,
 		)
 
 		risksWithComposite = append(risksWithComposite, moduleRiskWithComposite{
 			ModuleRisk:     r,
-			CompositeScore: composite.Composite,
+			CompositeScore: final.Final,
 		})
 	}
 
