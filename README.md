@@ -113,67 +113,7 @@ All languages map to the same 9 capabilities. Risk level is derived from the tot
 | `unsafe` | 25 | Bypasses memory/type safety (`unsafe`, `eval`, `vm`) |
 | `plugin` | 20 | Loads or executes external code at runtime |
 
-### Capability detection per language
-
-#### Go
-
-Detects capabilities via static AST analysis of `.go` source files. Every detection records the source file, line number, the matched import path or call pattern, whether it was detected as an `import` or `callSite`, and a confidence score.
-
-| Import / call | Capabilities | Confidence |
-|--------------|--------------|------------|
-| `os`, `io/fs` | `fs:read`, `fs:write` | 90% (import) |
-| `net`, `net/http` | `network` | 90% (import) |
-| `os/exec` | `exec` | 90% (import) |
-| `os.Getenv` | `env` | 90% (import) |
-| `unsafe` | `unsafe` | 90% (import) |
-| `crypto/*` | `crypto` | 90% (import) |
-| `reflect` | `reflect` | 90% (import) |
-| `plugin` | `plugin` | 90% (import) |
-| `exec.Command(` | `exec` | 75% (callSite) |
-| `http.Get(`, `http.Post(` | `network` | 75% (callSite) |
-
-#### Node.js
-
-Scans `.js`, `.ts`, `.tsx`, `.mjs`, `.cjs` files for `require()`, ESM `import`, and dynamic `import()` patterns. Also scans `package.json` install scripts (`preinstall`, `install`, `postinstall`) for shell invocations. Covers 120+ popular npm packages (AWS SDK, Firebase, Prisma, Stripe, socket.io, etc.).
-
-| Import / call | Capabilities | Confidence |
-|--------------|--------------|------------|
-| `fs`, `node:fs`, `fs/promises` | `fs:read`, `fs:write` | 90% (import) |
-| `http`, `https`, `net`, `tls` | `network` | 90% (import) |
-| `child_process`, `worker_threads`, `cluster` | `exec` | 90% (import) |
-| `os`, `process` | `env` | 90% (import) |
-| `crypto` | `crypto` | 90% (import) |
-| `vm` | `unsafe` | 90% (import) |
-| `module`, dynamic `import()` | `plugin` | 90% (import) |
-| `eval(`, `new Function(` | `unsafe` | 60% (callSite) |
-| `exec(`, `spawn(`, `fork(` | `exec` | 60% (callSite) |
-| `fetch(`, `axios.`, `got(` | `network` | 60% (callSite) |
-| `readFile`, `writeFile`, `unlink(` | `fs:read` / `fs:write` | 60% (callSite) |
-| `process.env` | `env` | 60% (callSite) |
-| `preinstall`/`postinstall` with `curl`/`wget`/`bash` | `exec` + `network` | 85% (installScript) |
-
-#### PHP
-
-Scans `.php` source files for function call patterns and `use` statements. Parses `composer.lock` for the full dependency tree. Covers 80+ Composer packages and 150+ call-site patterns.
-
-| Import / call | Capabilities | Confidence |
-|--------------|--------------|------------|
-| `aws/aws-sdk-php` | `network`, `fs:read`, `fs:write` | 90% (import) |
-| `laravel/framework` | `network`, `fs:read`, `fs:write`, `env`, `exec`, `crypto` | 90% (import) |
-| `guzzlehttp/guzzle` | `network` | 90% (import) |
-| `firebase/php-jwt`, `lcobucci/jwt` | `crypto` | 90% (import) |
-| `symfony/process` | `exec` | 90% (import) |
-| `monolog/monolog` | `fs:write`, `network` | 90% (import) |
-| `exec(`, `shell_exec(`, `system(` | `exec` | 75% (callSite) |
-| `eval(`, `unserialize(`, `parse_str(`, `extract(` | `unsafe` | 75% (callSite) |
-| `curl_init(`, `fsockopen(`, `new PDO(`, `mysqli_connect(` | `network` | 75% (callSite) |
-| `file_get_contents(`, `fopen(`, `glob(` | `fs:read` | 75% (callSite) |
-| `file_put_contents(`, `unlink(`, `mkdir(` | `fs:write` | 75% (callSite) |
-| `openssl_encrypt(`, `password_hash(`, `random_bytes(` | `crypto` | 75% (callSite) |
-| `$_ENV`, `$_SERVER`, `getenv(`, `$_GET`, `$_POST`, `$_COOKIE` | `env` | 75% (callSite) |
-| **Laravel facades**: `Storage::`, `Http::`, `Mail::`, `DB::`, `Artisan::` | various | 75% (callSite) |
-| `Cache::`, `Crypt::`, `Hash::`, `Log::`, `File::`, `Process::` | various | 75% (callSite) |
-| `dispatch(`, `event(`, `broadcast(` | `exec` / `network` | 75% (callSite) |
+For the full per-language detection reference (imports, call-site patterns, confidence levels, and AST detection for all 22 supported languages), see **[docs/capability-detection.md](docs/capability-detection.md)**.
 
 ---
 
