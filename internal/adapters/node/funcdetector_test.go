@@ -60,7 +60,7 @@ function processData() {
 		t.Fatal(err)
 	}
 
-	funcs, edges, err := DetectFunctions(dir, []string{"test.js"})
+	funcs, edges, err := DetectFunctions(dir, "test-pkg", []string{"test.js"})
 	if err != nil {
 		t.Fatal(err)
 	}

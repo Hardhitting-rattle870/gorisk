@@ -2,6 +2,7 @@ package node
 
 import (
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -236,28 +237,32 @@ func buildNodeFunctionIRGraph(g *graph.DependencyGraph) ir.IRGraph {
 			continue
 		}
 
-		// Find JavaScript/TypeScript files
-		jsFiles, err := filepath.Glob(filepath.Join(pkg.Dir, "*.js"))
-		if err != nil {
-			continue
-		}
-		tsFiles, err := filepath.Glob(filepath.Join(pkg.Dir, "*.ts"))
-		if err == nil {
-			jsFiles = append(jsFiles, tsFiles...)
-		}
+		// Collect JS/TS source files recursively, skipping node_modules.
+		var relFiles []string
+		_ = filepath.WalkDir(pkg.Dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if d.IsDir() && d.Name() == "node_modules" {
+				return filepath.SkipDir
+			}
+			ext := strings.ToLower(filepath.Ext(path))
+			switch ext {
+			case ".js", ".ts", ".tsx", ".mjs", ".cjs":
+				rel, relErr := filepath.Rel(pkg.Dir, path)
+				if relErr == nil {
+					relFiles = append(relFiles, rel)
+				}
+			}
+			return nil
+		})
 
-		if len(jsFiles) == 0 {
+		if len(relFiles) == 0 {
 			continue
-		}
-
-		// Extract just filenames for DetectFunctions
-		var fileNames []string
-		for _, fpath := range jsFiles {
-			fileNames = append(fileNames, filepath.Base(fpath))
 		}
 
 		// Detect functions in this package
-		funcs, edges, err := DetectFunctions(pkg.Dir, fileNames)
+		funcs, edges, err := DetectFunctions(pkg.Dir, pkg.ImportPath, relFiles)
 		if err != nil {
 			interproc.Warnf("[node] Failed to detect functions in %s: %v", pkg.ImportPath, err)
 			continue

@@ -45,7 +45,7 @@ var (
 //
 // This is a regex-based MVP implementation. For production, consider using
 // esbuild-go or babel parser for more accurate AST analysis.
-func DetectFunctions(dir string, jsFiles []string) (map[string]ir.FunctionCaps, []ir.CallEdge, error) {
+func DetectFunctions(dir, pkgName string, jsFiles []string) (map[string]ir.FunctionCaps, []ir.CallEdge, error) {
 	funcs := make(map[string]ir.FunctionCaps)
 	var edges []ir.CallEdge
 
@@ -65,8 +65,8 @@ func DetectFunctions(dir string, jsFiles []string) (map[string]ir.FunctionCaps, 
 		// Analyze each function
 		for _, fn := range fileFuncs {
 			sym := ir.Symbol{
-				Package: dir,
-				Name:    fn.Name,
+				Package: pkgName,
+				Name:    jsFile + "::" + fn.Name,
 				Kind:    "function",
 			}
 
@@ -84,8 +84,8 @@ func DetectFunctions(dir string, jsFiles []string) (map[string]ir.FunctionCaps, 
 			for _, calleeName := range calls {
 				// Create call edge
 				calleeSym := ir.Symbol{
-					Package: dir,
-					Name:    calleeName,
+					Package: pkgName,
+					Name:    jsFile + "::" + calleeName,
 					Kind:    "function",
 				}
 

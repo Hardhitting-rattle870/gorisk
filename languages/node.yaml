@@ -347,7 +347,8 @@ call_sites:
   "process.cwd(":            [fs:read]
 
   # ── Network ───────────────────────────────────────────────────────────────
-  "fetch(":                  [network]
+  "globalThis.fetch(":       [network]
+  "window.fetch(":           [network]
   "axios.":                  [network]
   "axios.get(":              [network]
   "axios.post(":             [network]
